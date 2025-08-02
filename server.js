@@ -56,7 +56,7 @@ app.post('/get-comps', async (req, res) => {
 
     let listings = Array.isArray(data.value) ? data.value : [];
 
-    // Local filtering
+    // Apply local filters
     listings = listings.filter(p => {
       const b = p.BedroomsTotal ?? 0;
       const ba = p.BathroomsFull ?? 0;
@@ -80,9 +80,10 @@ app.post('/get-comps', async (req, res) => {
       );
     });
 
-    const comps = listings.map(p => {
-      const pricePerSqft = p.LivingArea ? (p.ClosePrice / p.LivingArea).toFixed(2) : null;
-      const arv = p.ClosePrice ? (p.ClosePrice * 1.1).toFixed(0) : null;
+    // Compute pricePerSqft + ARV
+    let comps = listings.map(p => {
+      const pricePerSqft = p.LivingArea ? (p.ClosePrice / p.LivingArea) : null;
+      const arv = p.ClosePrice ? (p.ClosePrice * 1.1) : null;
 
       return {
         listingKey: p.ListingKey,
@@ -94,11 +95,27 @@ app.post('/get-comps', async (req, res) => {
         baths: p.BathroomsFull,
         sqft: p.LivingArea,
         yearBuilt: p.YearBuilt,
-        pricePerSqft: pricePerSqft ? Number(pricePerSqft) : null,
-        arv: arv ? Number(arv) : null
+        pricePerSqft,
+        arv
       };
     });
 
+    // Outlier & Fixer-Upper Analysis
+    const ppsfArray = comps.map(c => c.pricePerSqft).filter(v => v).sort((a, b) => a - b);
+    const median = ppsfArray[Math.floor(ppsfArray.length / 2)];
+    const q1 = ppsfArray[Math.floor(ppsfArray.length * 0.25)];
+    const q3 = ppsfArray[Math.floor(ppsfArray.length * 0.75)];
+    const iqr = q3 - q1;
+    const lower = q1 - 1.5 * iqr;
+    const upper = q3 + 1.5 * iqr;
+
+    comps = comps.map(c => ({
+      ...c,
+      pricePerSqft: c.pricePerSqft ? Number(c.pricePerSqft.toFixed(2)) : null,
+      arv: c.arv ? Number(c.arv.toFixed(0)) : null,
+      isFixer: c.pricePerSqft !== null ? c.pricePerSqft < median * 0.8 : false,
+      isOutlier: c.pricePerSqft !== null ? (c.pricePerSqft < lower || c.pricePerSqft > upper) : false
+    }));
 
     res.json({ comps });
   } catch (err) {
