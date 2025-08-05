@@ -122,9 +122,9 @@ app.post('/get-comps', async (req, res) => {
 
     return res.json({ comps });
   } catch (err) {
-    console.error('IDX API error:', err.response?.data || err.message);
-    return res.status(500).json({ error: 'Failed to fetch comps' });
-  }
+     console.error('IDX API error:', err.response?.data || err.message || err);
+      return res.status(500).json({ error: 'Failed to fetch comps', detail: err.response?.data || err.message });
+    }
 });
 
 app.listen(PORT, () => {
