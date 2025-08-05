@@ -13,7 +13,9 @@ const haversineDistance = (a, b) => {
   const dLon = toRad(b.lng - a.lng);
   const lat1 = toRad(a.lat);
   const lat2 = toRad(b.lat);
-  const aVal = Math.sin(dLat/2)**2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon/2)**2;
+  const aVal =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
 };
 
@@ -27,28 +29,31 @@ app.post('/get-comps', async (req, res) => {
     min_year, max_year,
     postalCode,
     address,
-    status = 'Closed'
+    status = 'Closed' // Can be: 'Closed', 'Active', 'Pending'
   } = req.body;
 
   const fromDate = new Date();
   fromDate.setDate(fromDate.getDate() - days_sold);
   const isoDate = fromDate.toISOString().split('T')[0];
 
-  let odata = [`CloseDate ge ${isoDate}`, `MlsStatus eq '${status}'`];
-  if (postalCode) odata.push(`PostalCode eq '${postalCode}'`);
-  if (min_beds) odata.push(`BedroomsTotal ge ${min_beds}`);
-  if (max_beds) odata.push(`BedroomsTotal le ${max_beds}`);
-  if (min_baths) odata.push(`BathroomsFull ge ${min_baths}`);
-  if (max_baths) odata.push(`BathroomsFull le ${max_baths}`);
-  if (min_price) odata.push(`ClosePrice ge ${min_price}`);
-  if (max_price) odata.push(`ClosePrice le ${max_price}`);
-  if (min_sqft) odata.push(`LivingArea ge ${min_sqft}`);
-  if (max_sqft) odata.push(`LivingArea le ${max_sqft}`);
-  if (min_year) odata.push(`YearBuilt ge ${min_year}`);
-  if (max_year) odata.push(`YearBuilt le ${max_year}`);
+  const filters = [];
 
+  if (status === 'Closed') filters.push(`CloseDate ge ${isoDate}`);
+  filters.push(`MlsStatus eq '${status}'`);
+  if (postalCode) filters.push(`PostalCode eq '${postalCode}'`);
+  if (min_beds) filters.push(`BedroomsTotal ge ${min_beds}`);
+  if (max_beds) filters.push(`BedroomsTotal le ${max_beds}`);
+  if (min_baths) filters.push(`BathroomsFull ge ${min_baths}`);
+  if (max_baths) filters.push(`BathroomsFull le ${max_baths}`);
+  if (min_price) filters.push(`ClosePrice ge ${min_price}`);
+  if (max_price) filters.push(`ClosePrice le ${max_price}`);
+  if (min_sqft) filters.push(`LivingArea ge ${min_sqft}`);
+  if (max_sqft) filters.push(`LivingArea le ${max_sqft}`);
+  if (min_year) filters.push(`YearBuilt ge ${min_year}`);
+  if (max_year) filters.push(`YearBuilt le ${max_year}`);
+
+  const filterString = filters.join(' and ');
   const url = `${process.env.REPLICATION_BASE}/Property`;
-  const filterString = odata.join(' and ');
 
   try {
     const idxRes = await axios.get(url, {
@@ -59,47 +64,55 @@ app.post('/get-comps', async (req, res) => {
       params: {
         $filter: filterString,
         $orderby: 'CloseDate desc',
-        $top: 50,
+        $top: 100,
         $select: [
-          'ListingKey','UnparsedAddress','StateOrProvince','PostalCode','ListPrice','ClosePrice','CloseDate',
-          'BedroomsTotal','BathroomsFull','LivingArea','YearBuilt','Latitude','Longitude'
+          'ListingKey', 'UnparsedAddress', 'StateOrProvince', 'PostalCode',
+          'ListPrice', 'ClosePrice', 'CloseDate', 'BedroomsTotal',
+          'BathroomsFull', 'LivingArea', 'YearBuilt', 'Latitude', 'Longitude'
         ].join(',')
       }
     });
 
     let listings = Array.isArray(idxRes.data.value) ? idxRes.data.value : [];
+    listings = listings.filter(p => p.Latitude && p.Longitude && p.ClosePrice);
 
     let comps = [];
+
     if (address) {
       const geoResp = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
         params: { address, key: process.env.GOOGLE_MAPS_KEY }
       });
-      const { lat, lng } = geoResp.data.results[0].geometry.location;
 
-      listings = listings.filter(p => p.Latitude && p.Longitude);
+      const geoResult = geoResp.data?.results?.[0];
+      if (!geoResult) {
+        return res.status(400).json({ error: 'Invalid address or not found' });
+      }
 
-      const withDist = listings.map(p => {
+      const { lat, lng } = geoResult.geometry.location;
+
+      // Compute distance to comps
+      const sorted = listings.map(p => {
         const dist = haversineDistance({ lat, lng }, { lat: p.Latitude, lng: p.Longitude });
         return { ...p, distanceMiles: dist };
       }).sort((a, b) => a.distanceMiles - b.distanceMiles);
 
-      comps = withDist.slice(0, 3).map(p => {
+      comps = sorted.slice(0, 3).map(p => {
         const pricePerSqft = p.LivingArea ? p.ClosePrice / p.LivingArea : null;
         const arv = p.ClosePrice ? p.ClosePrice * 1.1 : null;
         return {
           listingKey: p.ListingKey,
-          address: p.UnparsedAddress,
+          address: p.UnparsedAddress || 'N/A',
           state: p.StateOrProvince,
           postalCode: p.PostalCode,
-          closePrice: p.ClosePrice,
           listPrice: p.ListPrice,
+          closePrice: p.ClosePrice,
           closeDate: p.CloseDate,
           beds: p.BedroomsTotal,
           baths: p.BathroomsFull,
           sqft: p.LivingArea,
           yearBuilt: p.YearBuilt,
-          pricePerSqft: pricePerSqft ? Number(pricePerSqft.toFixed(2)) : null,
           distanceMiles: Number(p.distanceMiles.toFixed(2)),
+          pricePerSqft: pricePerSqft ? Number(pricePerSqft.toFixed(2)) : null,
           arv: arv ? Number(arv.toFixed(0)) : null,
           imageURL: null,
           staticMap: `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(p.UnparsedAddress)}&zoom=15&size=600x300&key=${process.env.GOOGLE_MAPS_KEY}`
