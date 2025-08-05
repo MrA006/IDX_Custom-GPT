@@ -1,121 +1,119 @@
+require('dotenv').config();
+const express = require('express');
+const axios = require('axios');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+app.use(express.json());
+
+const haversineDistance = (a, b) => {
+  const toRad = deg => deg * (Math.PI / 180);
+  const R = 3958.8; // miles
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const aVal = Math.sin(dLat/2)**2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
+};
+
 app.post('/get-comps', async (req, res) => {
   const {
     days_sold = 180,
-    min_beds,
-    max_beds,
-    min_baths,
-    max_baths,
-    min_price,
-    max_price,
-    min_sqft,
-    max_sqft,
-    min_year,
-    max_year,
+    min_beds, max_beds,
+    min_baths, max_baths,
+    min_price, max_price,
+    min_sqft, max_sqft,
+    min_year, max_year,
+    postalCode,
     address,
-    state
+    status = 'Closed'
   } = req.body;
 
   const fromDate = new Date();
   fromDate.setDate(fromDate.getDate() - days_sold);
   const isoDate = fromDate.toISOString().split('T')[0];
 
-  const url = `${process.env.REPLICATION_BASE}/Property`;
+  let odata = [`CloseDate ge ${isoDate}`, `MlsStatus eq '${status}'`];
+  if (postalCode) odata.push(`PostalCode eq '${postalCode}'`);
+  if (min_beds) odata.push(`BedroomsTotal ge ${min_beds}`);
+  if (max_beds) odata.push(`BedroomsTotal le ${max_beds}`);
+  if (min_baths) odata.push(`BathroomsFull ge ${min_baths}`);
+  if (max_baths) odata.push(`BathroomsFull le ${max_baths}`);
+  if (min_price) odata.push(`ClosePrice ge ${min_price}`);
+  if (max_price) odata.push(`ClosePrice le ${max_price}`);
+  if (min_sqft) odata.push(`LivingArea ge ${min_sqft}`);
+  if (max_sqft) odata.push(`LivingArea le ${max_sqft}`);
+  if (min_year) odata.push(`YearBuilt ge ${min_year}`);
+  if (max_year) odata.push(`YearBuilt le ${max_year}`);
 
-  // Build OData filter string
-  let odataFilter = `CloseDate ge ${isoDate}`;
-  if (state) {
-    odataFilter += ` and StateOrProvince eq '${state}'`;
-  }
+  const url = `${process.env.REPLICATION_BASE}/Property`;
+  const filterString = odata.join(' and ');
 
   try {
-    const { data } = await axios.get(url, {
+    const idxRes = await axios.get(url, {
       headers: {
         Authorization: `Bearer ${process.env.SPARK_ACCESS_TOKEN}`,
-        Accept: 'application/json',
+        Accept: 'application/json'
       },
       params: {
-        $filter: odataFilter,
+        $filter: filterString,
         $orderby: 'CloseDate desc',
         $top: 50,
-        $select: `
-          ListingKey,
-          UnparsedAddress,
-          StateOrProvince,
-          ListPrice,
-          ClosePrice,
-          CloseDate,
-          BedroomsTotal,
-          BathroomsFull,
-          LivingArea,
-          YearBuilt
-        `.replace(/\s+/g, ''),
-      },
+        $select: [
+          'ListingKey','UnparsedAddress','StateOrProvince','PostalCode','ListPrice','ClosePrice','CloseDate',
+          'BedroomsTotal','BathroomsFull','LivingArea','YearBuilt','Latitude','Longitude'
+        ].join(',')
+      }
     });
 
-    let listings = Array.isArray(data.value) ? data.value : [];
+    let listings = Array.isArray(idxRes.data.value) ? idxRes.data.value : [];
 
-    listings = listings.filter(p => {
-      const b = p.BedroomsTotal ?? 0;
-      const ba = p.BathroomsFull ?? 0;
-      const pr = p.ClosePrice ?? 0;
-      const sqft = p.LivingArea ?? 0;
-      const year = p.YearBuilt ?? 0;
-      const addr = (p.UnparsedAddress || '').toLowerCase();
+    let comps = [];
+    if (address) {
+      const geoResp = await axios.get('https://maps.googleapis.com/maps/api/geocode/json', {
+        params: { address, key: process.env.GOOGLE_MAPS_KEY }
+      });
+      const { lat, lng } = geoResp.data.results[0].geometry.location;
 
-      return (
-        (min_beds ? b >= min_beds : true) &&
-        (max_beds ? b <= max_beds : true) &&
-        (min_baths ? ba >= min_baths : true) &&
-        (max_baths ? ba <= max_baths : true) &&
-        (min_price ? pr >= min_price : true) &&
-        (max_price ? pr <= max_price : true) &&
-        (min_sqft ? sqft >= min_sqft : true) &&
-        (max_sqft ? sqft <= max_sqft : true) &&
-        (min_year ? year >= min_year : true) &&
-        (max_year ? year <= max_year : true) &&
-        (address ? addr.includes(address.toLowerCase()) : true)
-      );
-    });
+      listings = listings.filter(p => p.Latitude && p.Longitude);
 
-    let comps = listings.map(p => {
-      const pricePerSqft = p.LivingArea ? (p.ClosePrice / p.LivingArea) : null;
-      const arv = p.ClosePrice ? (p.ClosePrice * 1.1) : null;
+      const withDist = listings.map(p => {
+        const dist = haversineDistance({ lat, lng }, { lat: p.Latitude, lng: p.Longitude });
+        return { ...p, distanceMiles: dist };
+      }).sort((a, b) => a.distanceMiles - b.distanceMiles);
 
-      return {
-        listingKey: p.ListingKey,
-        address: p.UnparsedAddress || 'N/A',
-        state: p.StateOrProvince || null,
-        listPrice: p.ListPrice,
-        closePrice: p.ClosePrice,
-        closeDate: p.CloseDate,
-        beds: p.BedroomsTotal,
-        baths: p.BathroomsFull,
-        sqft: p.LivingArea,
-        yearBuilt: p.YearBuilt,
-        pricePerSqft,
-        arv
-      };
-    });
+      comps = withDist.slice(0, 3).map(p => {
+        const pricePerSqft = p.LivingArea ? p.ClosePrice / p.LivingArea : null;
+        const arv = p.ClosePrice ? p.ClosePrice * 1.1 : null;
+        return {
+          listingKey: p.ListingKey,
+          address: p.UnparsedAddress,
+          state: p.StateOrProvince,
+          postalCode: p.PostalCode,
+          closePrice: p.ClosePrice,
+          listPrice: p.ListPrice,
+          closeDate: p.CloseDate,
+          beds: p.BedroomsTotal,
+          baths: p.BathroomsFull,
+          sqft: p.LivingArea,
+          yearBuilt: p.YearBuilt,
+          pricePerSqft: pricePerSqft ? Number(pricePerSqft.toFixed(2)) : null,
+          distanceMiles: Number(p.distanceMiles.toFixed(2)),
+          arv: arv ? Number(arv.toFixed(0)) : null,
+          imageURL: null,
+          staticMap: `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(p.UnparsedAddress)}&zoom=15&size=600x300&key=${process.env.GOOGLE_MAPS_KEY}`
+        };
+      });
+    }
 
-    const ppsfArray = comps.map(c => c.pricePerSqft).filter(v => v).sort((a, b) => a - b);
-    const median = ppsfArray[Math.floor(ppsfArray.length / 2)];
-    const q1 = ppsfArray[Math.floor(ppsfArray.length * 0.25)];
-    const q3 = ppsfArray[Math.floor(ppsfArray.length * 0.75)];
-    const iqr = q3 - q1;
-    const lower = q1 - 1.5 * iqr;
-    const upper = q3 + 1.5 * iqr;
-
-    comps = comps.map(c => ({
-      ...c,
-      pricePerSqft: c.pricePerSqft ? Number(c.pricePerSqft.toFixed(2)) : null,
-      arv: c.arv ? Number(c.arv.toFixed(0)) : null,
-      isFixer: c.pricePerSqft !== null ? c.pricePerSqft < median * 0.8 : false,
-      isOutlier: c.pricePerSqft !== null ? (c.pricePerSqft < lower || c.pricePerSqft > upper) : false
-    }));
-
-    res.json({ comps });
+    return res.json({ comps });
   } catch (err) {
-    console.error('IDX Replication API error:', err.response?.data || err.message);
+    console.error('IDX API error:', err.response?.data || err.message);
     return res.status(500).json({ error: 'Failed to fetch comps' });
   }
+});
+
+app.listen(PORT, () => {
+  console.log(`✨ /get-comps listening at http://localhost:${PORT}`);
 });
