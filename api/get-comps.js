@@ -1,10 +1,4 @@
-require('dotenv').config();
-const express = require('express');
-const axios = require('axios');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-app.use(express.json());
+import axios from 'axios';
 
 const haversineDistance = (a, b) => {
   const toRad = deg => deg * (Math.PI / 180);
@@ -19,7 +13,11 @@ const haversineDistance = (a, b) => {
   return R * 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
 };
 
-app.post('/get-comps', async (req, res) => {
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Only POST allowed' });
+  }
+
   const {
     days_sold = 180,
     min_beds, max_beds,
@@ -29,7 +27,7 @@ app.post('/get-comps', async (req, res) => {
     min_year, max_year,
     postalCode,
     address,
-    status = 'Closed' // Can be: 'Closed', 'Active', 'Pending'
+    status = 'Closed'
   } = req.body;
 
   const fromDate = new Date();
@@ -90,7 +88,6 @@ app.post('/get-comps', async (req, res) => {
 
       const { lat, lng } = geoResult.geometry.location;
 
-      // Compute distance to comps
       const sorted = listings.map(p => {
         const dist = haversineDistance({ lat, lng }, { lat: p.Latitude, lng: p.Longitude });
         return { ...p, distanceMiles: dist };
@@ -122,11 +119,7 @@ app.post('/get-comps', async (req, res) => {
 
     return res.json({ comps });
   } catch (err) {
-     console.error('IDX API error:', err.response?.data || err.message || err);
-      return res.status(500).json({ error: 'Failed to fetch comps', detail: err.response?.data || err.message });
-    }
-});
-
-app.listen(PORT, () => {
-  console.log(`✨ /get-comps listening at http://localhost:${PORT}`);
-});
+    console.error('IDX API error:', err.response?.data || err.message || err);
+    return res.status(500).json({ error: 'Failed to fetch comps', detail: err.response?.data || err.message });
+  }
+}
