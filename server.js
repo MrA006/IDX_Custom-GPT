@@ -1,12 +1,3 @@
-const express = require('express');
-const axios = require('axios');
-require('dotenv').config();
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(express.json());
-
 app.post('/get-comps', async (req, res) => {
   const {
     days_sold = 180,
@@ -20,7 +11,8 @@ app.post('/get-comps', async (req, res) => {
     max_sqft,
     min_year,
     max_year,
-    address
+    address,
+    state
   } = req.body;
 
   const fromDate = new Date();
@@ -28,7 +20,12 @@ app.post('/get-comps', async (req, res) => {
   const isoDate = fromDate.toISOString().split('T')[0];
 
   const url = `${process.env.REPLICATION_BASE}/Property`;
-  const odataFilter = `CloseDate ge ${isoDate}`;
+
+  // Build OData filter string
+  let odataFilter = `CloseDate ge ${isoDate}`;
+  if (state) {
+    odataFilter += ` and StateOrProvince eq '${state}'`;
+  }
 
   try {
     const { data } = await axios.get(url, {
@@ -43,6 +40,7 @@ app.post('/get-comps', async (req, res) => {
         $select: `
           ListingKey,
           UnparsedAddress,
+          StateOrProvince,
           ListPrice,
           ClosePrice,
           CloseDate,
@@ -56,7 +54,6 @@ app.post('/get-comps', async (req, res) => {
 
     let listings = Array.isArray(data.value) ? data.value : [];
 
-    // Apply local filters
     listings = listings.filter(p => {
       const b = p.BedroomsTotal ?? 0;
       const ba = p.BathroomsFull ?? 0;
@@ -80,7 +77,6 @@ app.post('/get-comps', async (req, res) => {
       );
     });
 
-    // Compute pricePerSqft + ARV
     let comps = listings.map(p => {
       const pricePerSqft = p.LivingArea ? (p.ClosePrice / p.LivingArea) : null;
       const arv = p.ClosePrice ? (p.ClosePrice * 1.1) : null;
@@ -88,6 +84,7 @@ app.post('/get-comps', async (req, res) => {
       return {
         listingKey: p.ListingKey,
         address: p.UnparsedAddress || 'N/A',
+        state: p.StateOrProvince || null,
         listPrice: p.ListPrice,
         closePrice: p.ClosePrice,
         closeDate: p.CloseDate,
@@ -100,7 +97,6 @@ app.post('/get-comps', async (req, res) => {
       };
     });
 
-    // Outlier & Fixer-Upper Analysis
     const ppsfArray = comps.map(c => c.pricePerSqft).filter(v => v).sort((a, b) => a - b);
     const median = ppsfArray[Math.floor(ppsfArray.length / 2)];
     const q1 = ppsfArray[Math.floor(ppsfArray.length * 0.25)];
@@ -122,8 +118,4 @@ app.post('/get-comps', async (req, res) => {
     console.error('IDX Replication API error:', err.response?.data || err.message);
     return res.status(500).json({ error: 'Failed to fetch comps' });
   }
-});
-
-app.listen(PORT, () => {
-  console.log(`✨ /get-comps listening at http://localhost:${PORT}`);
 });
