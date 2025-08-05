@@ -27,7 +27,8 @@ export default async function handler(req, res) {
     min_year, max_year,
     postalCode,
     address,
-    status = 'Closed'
+    status = 'Closed',
+    state
   } = req.body;
 
   const fromDate = new Date();
@@ -39,6 +40,7 @@ export default async function handler(req, res) {
   if (status === 'Closed') filters.push(`CloseDate ge ${isoDate}`);
   filters.push(`MlsStatus eq '${status}'`);
   if (postalCode) filters.push(`PostalCode eq '${postalCode}'`);
+  else if (state) filters.push(`StateOrProvince eq '${state}'`);
   if (min_beds) filters.push(`BedroomsTotal ge ${min_beds}`);
   if (max_beds) filters.push(`BedroomsTotal le ${max_beds}`);
   if (min_baths) filters.push(`BathroomsFull ge ${min_baths}`);
