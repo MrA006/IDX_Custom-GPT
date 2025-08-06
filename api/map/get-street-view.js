@@ -18,6 +18,14 @@ export default async function handler(req, res) {
     const encodedAddress = encodeURIComponent(address);
     const streetViewUrl = `https://idx-custom-gpt.vercel.app/api/map/proxy-street-view?address=${encodedAddress}`;
 
+    const streetViewUrlCheck = `https://maps.googleapis.com/maps/api/streetview?location=${coords.lat},${coords.lng}&size=600x300&key=${process.env.GOOGLE_MAPS_KEY}`;
+    const imageResp = await fetch(streetViewUrlCheck);
+
+    if (!imageResp.ok) {
+      console.warn('❌ Failed to fetch Street View Url (no image)');
+      return res.status(404).json({ streetViewUrl: false });
+    }
+
     return res.status(200).json({ streetViewUrl });
 
   } catch (err) {
