@@ -4,6 +4,9 @@ import { getLatLngFromAddress } from '../../utils/getLatLngFromAddress.js';
 export default async function handler(req, res) {
   const { address, lat, lng } = req.body;
 
+  console.log('Received request for Static View:', { address, lat, lng });
+
+
   try {
     let coords = lat && lng ? { lat, lng } : await getLatLngFromAddress(address);
     if (!coords) return res.json({ staticMapUrl: null });
