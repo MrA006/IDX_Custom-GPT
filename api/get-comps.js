@@ -17,7 +17,11 @@ export default async function handler(req, res) {
     address,
     status = 'Closed',
     state,
-    orderby = 'ListPrice desc'
+    orderby = 'ListPrice desc',
+    beds, // for exact match
+    baths,
+    sqft,
+    year
   } = req.body;
 
   const filters = [];
@@ -34,6 +38,10 @@ export default async function handler(req, res) {
   if (max_sqft) filters.push(`LivingArea le ${max_sqft}`);
   if (min_year) filters.push(`YearBuilt ge ${min_year}`);
   if (max_year) filters.push(`YearBuilt le ${max_year}`);
+  if(beds)  filters.push(`BedroomsTotal eq ${beds}`);
+  if(baths) filters.push(`BathroomsFull eq ${baths}`);
+  if(sqft)  filters.push(`LivingArea eq ${sqft}`);
+  if(year)  filters.push(`YearBuilt eq ${year}`);
 
   const filterString = filters.join(' and ');
   const url = `${process.env.REPLICATION_BASE}/Property`;
