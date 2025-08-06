@@ -58,7 +58,7 @@ export default async function handler(req, res) {
         $orderby: orderby,
         $select: [
           'ListingKey', 'UnparsedAddress', 'City', 'StateOrProvince', 'PostalCode',
-          'ListPrice', 'ClosePrice', 'ListDate', 'CloseDate',
+          'ListPrice', 'ClosePrice', 'OnMarketDate', 'CloseDate',
           'BedroomsTotal', 'BathroomsFull', 'LivingArea', 'BuildingAreaTotal',
           'YearBuilt', 'LotSizeAcres', 'LotSizeSquareFeet',
           'PropertySubType', 'PropertyType', 'ArchitecturalStyle', 'Stories',
