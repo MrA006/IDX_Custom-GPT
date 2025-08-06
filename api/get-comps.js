@@ -59,6 +59,7 @@ export default async function handler(req, res) {
   const url = `${process.env.REPLICATION_BASE}/Property`;
 
   console.log('Fetching comps with filters:', filterString);
+  console.log('Fetching comps with orderby :', orderby, 'and top:', top);
 
   try {
     const idxRes = await axios.get(url, {
