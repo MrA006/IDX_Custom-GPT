@@ -1,27 +1,42 @@
-// /api/map/get-street-view.js
 import axios from 'axios';
 import { getLatLngFromAddress } from '../../utils/getLatLngFromAddress.js';
 
 export default async function handler(req, res) {
   const { address, lat, lng } = req.body;
+  console.log('📍 Street View Request:', { address, lat, lng });
 
-  console.log('Received request for Street View:', { address, lat, lng });
+  if (!address && !(lat && lng)) {
+    return res.status(400).json({ error: 'Missing address and lat/lng both' });
+  }
 
   try {
-    let coords = lat && lng ? { lat, lng } : await getLatLngFromAddress(address);
-    if (!coords) return res.json({ streetViewUrl: null });
+    const coords = lat && lng ? { lat, lng } : await getLatLngFromAddress(address);
+    if (!coords  || !coords.lat || !coords.lng) {
+      return res.status(400).json({ error: 'Could not resolve coordinates from address' });
+    }
 
     const metadataURL = `https://maps.googleapis.com/maps/api/streetview/metadata?location=${coords.lat},${coords.lng}&key=${process.env.GOOGLE_MAPS_KEY}`;
     const metadataResp = await axios.get(metadataURL);
 
     if (metadataResp.data.status !== 'OK') {
-      return res.json({ streetViewUrl: null });
+      console.warn('❌ No Street View available');
+      return res.status(404).json({ streetViewAvailable: false });
     }
 
     const streetViewUrl = `https://maps.googleapis.com/maps/api/streetview?location=${coords.lat},${coords.lng}&size=600x300&key=${process.env.GOOGLE_MAPS_KEY}`;
-    return res.json({ streetViewUrl });
+    const imageResp = await fetch(streetViewUrl);
+
+    if (!imageResp.ok) {
+      console.warn('❌ Failed to fetch Street View image');
+      return res.status(404).json({ streetViewAvailable: false });
+    }
+
+    res.setHeader('Content-Type', 'image/jpeg');
+    const buffer = await imageResp.arrayBuffer();
+    return res.send(Buffer.from(buffer));
+
   } catch (err) {
-    console.error(err);
-    return res.json({ streetViewUrl: null });
+    console.error('❗ Street View Error:', err);
+    return res.status(500).json({ error: 'Failed to fetch street view' });
   }
 }
