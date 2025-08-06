@@ -23,6 +23,7 @@ export default async function handler(req, res) {
     baths,
     sqft,
     year,
+    city,
     top = 10 // default to 10 results
   } = req.body;
 
@@ -44,6 +45,7 @@ export default async function handler(req, res) {
   if(baths) filters.push(`BathroomsFull eq ${baths}`);
   if(sqft)  filters.push(`LivingArea eq ${sqft}`);
   if(year)  filters.push(`YearBuilt eq ${year}`);
+  if(city)  filters.push(`City eq ${year}`);
 
   if (status === 'Closed' && days_sold) {
   const fromDate = new Date();
