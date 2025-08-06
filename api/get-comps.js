@@ -22,7 +22,8 @@ export default async function handler(req, res) {
     beds, // for exact match
     baths,
     sqft,
-    year
+    year,
+    top = 10 // default to 10 results
   } = req.body;
 
   const filters = [];
@@ -65,7 +66,7 @@ export default async function handler(req, res) {
       },
       params: {
         $filter: filterString,
-        $top: 50,
+        $top: top,
         $orderby: orderby,
         $select: [
           'ListingKey', 'UnparsedAddress', 'City', 'StateOrProvince', 'PostalCode',
