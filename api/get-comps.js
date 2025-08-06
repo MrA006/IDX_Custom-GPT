@@ -17,7 +17,7 @@ export default async function handler(req, res) {
     address,
     status,
     state,
-    orderby = 'ListPrice desc',
+    orderby = 'CloseDate desc',
     days_sold,
     beds, // for exact match
     baths,
