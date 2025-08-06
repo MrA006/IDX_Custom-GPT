@@ -74,7 +74,7 @@ export default async function handler(req, res) {
           'YearBuilt', 'LotSizeSquareFeet',
           'PropertySubType', 'PropertyType',
           'SubdivisionName', 'PropertyCondition', 'ParkingFeatures', 'GarageSpaces', 
-          'MlsStatus', 'DaysOnMarket',
+          'MlsStatus',
           'Latitude', 'Longitude'
         ].join(',')
       }
