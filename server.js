@@ -16,12 +16,12 @@ app.post('/get-comps', (req, res) => {
 });
 
 // 🗺️ Static Map endpoint
-app.post('/api/map/get-static', (req, res) => {
+app.get('/api/map/get-static', (req, res) => {
   getStaticMap(req, res);
 });
 
 // 🚶 Street View endpoint
-app.post('/api/map/get-street-view', (req, res) => {
+app.get('/api/map/get-street-view', (req, res) => {
   getStreetView(req, res);
 });
 
