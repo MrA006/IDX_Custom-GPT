@@ -1,3 +1,5 @@
+import { getLatLngFromAddress } from '../../utils/getLatLngFromAddress.js';
+
 export default async function handler(req, res) {
   const { address, lat, lng } = req.query;
 
