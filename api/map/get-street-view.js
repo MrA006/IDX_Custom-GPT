@@ -2,7 +2,7 @@ import axios from 'axios';
 import { getLatLngFromAddress } from '../../utils/getLatLngFromAddress.js';
 
 export default async function handler(req, res) {
-  const { address, lat, lng } = req.body;
+  const { address, lat, lng } = req.query || req.body || {};
   console.log('📍 Street View Request:', { address, lat, lng });
 
   if (!address && !(lat && lng)) {
