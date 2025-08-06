@@ -1,7 +1,6 @@
-import { getLatLngFromAddress } from '../../utils/getLatLngFromAddress.js';
-
 export default async function handler(req, res) {
-  const { address, lat, lng } = req.query || req.body || {};
+  const { address, lat, lng } = req.query;
+
   console.log('📍 Static Map Request:', { address, lat, lng });
 
   if (!address && !(lat && lng)) {
@@ -11,23 +10,17 @@ export default async function handler(req, res) {
   try {
     const coords = lat && lng ? { lat, lng } : await getLatLngFromAddress(address);
     if (!coords || !coords.lat || !coords.lng) {
-      return res.status(400).json({ error: 'Could not resolve coordinates' });
+      return res.status(400).json({ staticMapUrl: null });
     }
 
-    const staticMapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${coords.lat},${coords.lng}&zoom=15&size=600x300&markers=color:red|label:A|${coords.lat},${coords.lng}&key=${process.env.GOOGLE_MAPS_KEY}`;
-    
-    const response = await fetch(staticMapUrl);
-    if (!response.ok) {
-      console.warn('❌ Static map not available');
-      return res.status(404).json({ staticMapUrl: null });
-    }
+    // Instead of fetching the image, construct the safe proxied URL
+    const encodedAddress = encodeURIComponent(address);
+    const staticMapUrl = `https://idx-custom-gpt.vercel.app/api/map/proxy-static?address=${encodedAddress}`;
 
-    res.setHeader('Content-Type', 'image/jpeg');
-    const buffer = await response.arrayBuffer();
-    return res.send(Buffer.from(buffer));
+    return res.status(200).json({ staticMapUrl });
 
   } catch (err) {
     console.error('❗ Static map error:', err);
-    return res.status(500).json({ error: 'Failed to generate static map' });
+    return res.status(500).json({ staticMapUrl: null });
   }
 }
