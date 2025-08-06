@@ -45,7 +45,7 @@ export default async function handler(req, res) {
   if(baths) filters.push(`BathroomsFull eq ${baths}`);
   if(sqft)  filters.push(`LivingArea eq ${sqft}`);
   if(year)  filters.push(`YearBuilt eq ${year}`);
-  if(city)  filters.push(`City eq ${year}`);
+  if(city)  filters.push(`City eq '${city}'`);
 
   if (status === 'Closed' && days_sold) {
   const fromDate = new Date();
