@@ -15,9 +15,10 @@ export default async function handler(req, res) {
     min_year, max_year,
     postalCode,
     address,
-    status = 'Closed',
+    status,
     state,
     orderby = 'ListPrice desc',
+    days_sold,
     beds, // for exact match
     baths,
     sqft,
@@ -43,8 +44,18 @@ export default async function handler(req, res) {
   if(sqft)  filters.push(`LivingArea eq ${sqft}`);
   if(year)  filters.push(`YearBuilt eq ${year}`);
 
+  if (status === 'Closed' && days_sold) {
+  const fromDate = new Date();
+  fromDate.setDate(fromDate.getDate() - days_sold);
+  const isoDate = fromDate.toISOString().split('T')[0];
+  filters.push(`CloseDate ge ${isoDate}`);
+}
+
+
   const filterString = filters.join(' and ');
   const url = `${process.env.REPLICATION_BASE}/Property`;
+
+  console.log('Fetching comps with filters:', filterString);
 
   try {
     const idxRes = await axios.get(url, {
@@ -54,19 +65,17 @@ export default async function handler(req, res) {
       },
       params: {
         $filter: filterString,
-        $top: 100,
+        $top: 50,
         $orderby: orderby,
         $select: [
           'ListingKey', 'UnparsedAddress', 'City', 'StateOrProvince', 'PostalCode',
-          'ListPrice', 'ClosePrice', 'OnMarketDate', 'CloseDate',
-          'BedroomsTotal', 'BathroomsFull', 'LivingArea', 'BuildingAreaTotal',
-          'YearBuilt', 'LotSizeAcres', 'LotSizeSquareFeet',
-          'PropertySubType', 'PropertyType', 'ArchitecturalStyle', 'Stories',
-          'SubdivisionName', 'PoolFeatures', 'Heating', 'Cooling', 'Sewer', 'WaterSource',
-          'PropertyCondition', 'Fencing', 'Flooring', 'InteriorFeatures', 'ExteriorFeatures',
-          'ParkingFeatures', 'GarageSpaces', 'FireplacesTotal', 'PublicRemarks',
-          'StandardStatus', 'MlsStatus', 'DaysOnMarket', 'VirtualTourURLUnbranded',
-          'ListOfficeName', 'ListAgentFullName', 'Latitude', 'Longitude'
+          'ListPrice', 'ClosePrice', 'CloseDate',
+          'BedroomsTotal', 'BathroomsFull', 'LivingArea',
+          'YearBuilt', 'LotSizeSquareFeet',
+          'PropertySubType', 'PropertyType',
+          'SubdivisionName', 'PropertyCondition', 'ParkingFeatures', 'GarageSpaces', 
+          'MlsStatus', 'DaysOnMarket',
+          'Latitude', 'Longitude'
         ].join(',')
       }
     });
