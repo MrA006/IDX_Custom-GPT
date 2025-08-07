@@ -89,43 +89,20 @@ export default async function handler(req, res) {
     const topFilter = top < 40 ? 120 : 200; // Spark API limit is 200
 
     const select = [
-      "ListingId",
-      "UnparsedAddress",
-      "City",
-      "StateOrProvince",
-      "PostalCode",
+          'ListingKey', 'UnparsedAddress', 'City', 'StateOrProvince', 'PostalCode',
+          'ListPrice', 'ClosePrice', 'CloseDate',
+          'BedroomsTotal', 'BathroomsFull', 'LivingArea',
+          'YearBuilt', 'LotSizeSquareFeet',
+          'PropertySubType', 'PropertyType',
+          'SubdivisionName', 'MlsStatus', 'Latitude', 'Longitude',
+          'BathroomsTotalInteger', 'Stories', 'ArchitecturalStyle',
+          'PropertyCondition', 'Flooring', 'InteriorFeatures',
+          'ExteriorFeatures', 'PublicRemarks'
+        ]
+    
+    
 
-      "ClosePrice",
-      "CloseDate",
-      "ListPrice",
-      "ListDate",
-      "MlsStatus",
-      "StandardStatus",
-
-      "BedroomsTotal",
-      "BathroomsTotalInteger",
-      "LivingArea",
-      "BuildingAreaTotal",
-      "LotSizeSquareFeet",
-      "LotSizeAcres",
-      "YearBuilt",
-      "Stories",
-      "ArchitecturalStyle",
-      "PropertyType",
-      "PropertySubType",
-
-      "GarageSpaces",
-      "ParkingFeatures",
-      "PoolFeatures",
-      "Heating",
-      "Cooling",
-
-      "PropertyCondition",
-      "Flooring",
-      "InteriorFeatures",
-      "ExteriorFeatures",
-      "PublicRemarks"
-    ];
+    
 
     const idxRes = await axios.get(url, {
       headers: {
