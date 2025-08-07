@@ -84,6 +84,7 @@ export default async function handler(req, res) {
 
     console.log('Fetching comps with filters:', filterString);
     console.log('Fetching comps with orderby :', orderby, 'and top:', top);
+    console.log('Fetching comps with radius :', radius);
 
     const topFilter = top < 40 ? 120 : 200; // Spark API limit is 200
 
