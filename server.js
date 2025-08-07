@@ -5,6 +5,7 @@ import getStaticMap from './api/map/get-static.js';
 import getStreetView from './api/map/get-street-view.js';
 import StaticProxy from './api/map/proxy-static.js';
 import StreetViewProxy from './api/map/proxy-street-view.js';
+import getNearestComps from './api/get-nearby-comps.js';
 
 dotenv.config();
 const app = express();
@@ -40,10 +41,15 @@ app.get('/api/map/proxy-street-view', (req, res) => {
   StreetViewProxy(req, res);
 });
 
+// Top nearest comps
+app.post('/api/get-nearby-comps', (req, res) => {
+  getNearestComps(req, res);
+});
 
 app.listen(PORT, () => {
   console.log(`🔥 Local API running at:`);
   console.log(`→ http://localhost:${PORT}/get-comps`);
   console.log(`→ http://localhost:${PORT}/api/map/get-static`);
   console.log(`→ http://localhost:${PORT}/api/map/get-street-view`);
+  console.log(`→ http://localhost:${PORT}/api/get-nearest-comps`);
 });
