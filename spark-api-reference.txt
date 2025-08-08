@@ -1,0 +1,87 @@
+Spark API Reference for Custom GPT Comp Analyzer
+
+Overview
+--------
+This document provides ready-to-use cURL commands, syntax examples, and troubleshooting tips for integrating the Spark Platform OData API into a Custom GPT real estate comp analyzer.
+
+Base URL:
+https://replication.sparkapi.com/Version/3/Reso/OData
+
+Authentication:
+Use your non-expiring Access Token from Spark.
+Include it in the Authorization header as:
+Authorization: Bearer YOUR_ACCESS_TOKEN
+
+---
+
+Example: Radius Search for Nearby Comps
+---------------------------------------
+This example searches for properties within a given radius (in miles) of a latitude/longitude, including Closed, Active, and Pending listings.
+
+curl -X GET "https://replication.sparkapi.com/Version/3/Reso/OData/Property?$filter=geo.distance(Location, geography'POINT({lng} {lat})') le {radius} and (MlsStatus eq 'Closed' or MlsStatus eq 'Active' or MlsStatus eq 'Pending') and PropertyType eq 'Residential'&$orderby=CloseDate desc&$top=50&$select=ListingKey,MlsStatus,ListPrice,ClosePrice,BedroomsTotal,BathroomsTotalInteger,LivingArea,LotSizeAcres,YearBuilt,CloseDate,City,StateOrProvince,PostalCode,Latitude,Longitude,PropertySubType,StandardStatus,ListingId,UnparsedAddress" \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+-H "Accept: application/json"
+
+- Replace {lng} and {lat} with the longitude and latitude.
+- Replace {radius} with the search radius in miles (e.g., 1, 2, 5).
+- $top can be up to 200.
+
+---
+
+Example: Search by City and State
+---------------------------------
+curl -X GET "https://replication.sparkapi.com/Version/3/Reso/OData/Property?$filter=contains(City,'Kingsport') and StateOrProvince eq 'TN' and (MlsStatus eq 'Closed' or MlsStatus eq 'Active' or MlsStatus eq 'Pending') and PropertyType eq 'Residential'&$orderby=ListPrice desc&$top=25&$select=ListingKey,MlsStatus,ListPrice,ClosePrice,BedroomsTotal,BathroomsTotalInteger,LivingArea,LotSizeAcres,YearBuilt,CloseDate,City,StateOrProvince,PostalCode,Latitude,Longitude,PropertySubType,StandardStatus,ListingId,UnparsedAddress" \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+
+---
+
+Example: Flexible Address-based Search
+--------------------------------------
+curl -X GET "https://replication.sparkapi.com/Version/3/Reso/OData/Property?$filter=contains(UnparsedAddress,'5804 Aztec Dr') and (MlsStatus eq 'Closed' or MlsStatus eq 'Active' or MlsStatus eq 'Pending') and PropertyType eq 'Residential'&$orderby=CloseDate desc&$top=10&$select=ListingKey,MlsStatus,ListPrice,ClosePrice,BedroomsTotal,BathroomsTotalInteger,LivingArea,LotSizeAcres,YearBuilt,CloseDate,City,StateOrProvince,PostalCode,Latitude,Longitude,PropertySubType,StandardStatus,ListingId,UnparsedAddress" \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+
+- Use contains(UnparsedAddress,'...') for partial/flexible address matching.
+
+---
+
+Example: All Filters Combined
+-----------------------------
+curl -X GET "https://replication.sparkapi.com/Version/3/Reso/OData/Property?$filter=geo.distance(Location, geography'POINT({lng} {lat})') le {radius} and (MlsStatus eq 'Closed' or MlsStatus eq 'Active' or MlsStatus eq 'Pending') and PropertyType eq 'Residential' and ListPrice ge 200000 and ListPrice le 400000 and BedroomsTotal eq 3 and BathroomsFull eq 2&$orderby=CloseDate desc&$top=50&$select=ListingKey,MlsStatus,ListPrice,ClosePrice,BedroomsTotal,BathroomsFull,LivingArea,LotSizeAcres,YearBuilt,CloseDate,City,StateOrProvince,PostalCode,Latitude,Longitude,PropertySubType,StandardStatus,ListingId,UnparsedAddress" \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+
+---
+
+Common Issues & Fixes
+---------------------
+1. Empty Results:
+   - Check MLS coverage, status filters, and radius.
+   - Use contains for city/address for more flexible matching.
+2. 400 Bad Request:
+   - Check OData syntax, field names, and filter logic.
+3. 404 Not Found:
+   - Use the correct endpoint: /Property.
+
+---
+
+Syntax Notes
+------------
+- Radius: geo.distance(Location, geography'POINT({lng} {lat})') le {miles}
+- String contains: contains(Field,'value')
+- Logical OR: or
+- Logical AND: and
+- Case sensitivity: Field names are case-sensitive.
+- Recommended fields:
+  ListingKey, MlsStatus, ListPrice, ClosePrice, BedroomsTotal, BathroomsTotalInteger, LivingArea, LotSizeAcres, YearBuilt, CloseDate, City, StateOrProvince, PostalCode, Latitude, Longitude, PropertySubType, StandardStatus, ListingId, UnparsedAddress
+
+---
+
+Debugging Tips
+--------------
+1. Log the final Spark API URL your backend sends before execution.
+2. Test the URL directly in Postman or cURL.
+3. Compare coordinates in Google Maps to ensure accuracy.
+4. Gradually remove filters to find which one is excluding results.
+
+---
+
+End of Reference.

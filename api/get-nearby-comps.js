@@ -3,18 +3,6 @@
 import axios from 'axios';
 import { getLatLngFromAddress } from '../utils/getLatLngFromAddress.js';
 
-const haversineDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 3958.8; // Earth radius in miles
-  const toRad = deg => deg * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a = Math.sin(dLat / 2) ** 2 +
-            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-            Math.sin(dLon / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Only POST method is allowed' });
@@ -39,50 +27,62 @@ export default async function handler(req, res) {
     top = 10 // default to 200 results
   } = req.body;
 
-
   try {
-    const coords = lat && lng ? { lat, lng } : await getLatLngFromAddress(address);
-    if (!coords?.lat || !coords?.lng) {
+    let subjectData = null;
+    let subjectCoords = { lat, lng };
+
+    // If address is given, fetch subject property details
+    if (address) {
+      // Fetch subject property by address (flexible match)
+      const subjectUrl = `${process.env.REPLICATION_BASE}/Property`;
+      const subjectFilter = `contains(UnparsedAddress, '${address.replace(/'/g, "''")}') and PropertyType eq '${propertyType}'`;
+      const subjectSelect = [
+        'ListingKey', 'UnparsedAddress', 'City', 'StateOrProvince', 'PostalCode',
+        'ListPrice', 'ClosePrice', 'CloseDate',
+        'BedroomsTotal', 'BathroomsFull', 'LivingArea',
+        'YearBuilt', 'LotSizeSquareFeet',
+        'PropertySubType', 'PropertyType',
+        'SubdivisionName', 'MlsStatus', 'Latitude', 'Longitude',
+        'BathroomsTotalInteger', 'Stories', 'ArchitecturalStyle',
+        'PropertyCondition', 'Flooring', 'InteriorFeatures',
+        'ExteriorFeatures', 'PublicRemarks'
+      ];
+      const subjectRes = await axios.get(subjectUrl, {
+        headers: {
+          Authorization: `Bearer ${process.env.SPARK_ACCESS_TOKEN}`,
+          Accept: 'application/json'
+        },
+        params: {
+          $filter: subjectFilter,
+          $top: 1,
+          $select: subjectSelect.join(',')
+        }
+      });
+      subjectData = Array.isArray(subjectRes.data.value) && subjectRes.data.value.length > 0 ? subjectRes.data.value[0] : null;
+      // If subjectData is found but missing lat/lng, get from Google API
+      if (subjectData && (!subjectData.Latitude || !subjectData.Longitude)) {
+        const coordsFromGoogle = await getLatLngFromAddress(subjectData.UnparsedAddress || address);
+        subjectData.Latitude = coordsFromGoogle.lat;
+        subjectData.Longitude = coordsFromGoogle.lng;
+      }
+      // Use subjectData's lat/lng for nearby search if available
+      if (subjectData && subjectData.Latitude && subjectData.Longitude) {
+        subjectCoords = { lat: subjectData.Latitude, lng: subjectData.Longitude };
+      } else if (!subjectCoords.lat || !subjectCoords.lng) {
+        // If still missing, try Google API from address
+        const coordsFromGoogle = await getLatLngFromAddress(address);
+        subjectCoords = { lat: coordsFromGoogle.lat, lng: coordsFromGoogle.lng };
+      }
+    }
+
+    // If no coordinates, error
+    if (!subjectCoords.lat || !subjectCoords.lng) {
       return res.status(400).json({ error: 'Invalid or missing coordinates' });
     }
 
-    console.log('Using coordinates:', coords);
-
-    // const filters = [];
-
-    // // Status logic
-    // if (!includeActivePending) {
-    //   filters.push(`MlsStatus eq 'Closed'`);
-    // } else {
-    //   filters.push(`(MlsStatus eq 'Closed' or MlsStatus eq 'Active' or MlsStatus eq 'Pending')`);
-    // }
-
-    // // Date logic
-    // if (days_sold && !includeActivePending) {
-    //   const fromDate = new Date();
-    //   fromDate.setDate(fromDate.getDate() - days_sold);
-    //   const isoDate = fromDate.toISOString().split('T')[0];
-    //   filters.push(`CloseDate ge ${isoDate}`);
-    // }
-
-    // // Apply all other filters based on new destructured variables
-    // if (min_price) filters.push(`ListPrice ge ${min_price}`);
-    // if (max_price) filters.push(`ListPrice le ${max_price}`);
-    // if (min_sqft) filters.push(`LivingArea ge ${min_sqft}`);
-    // if (max_sqft) filters.push(`LivingArea le ${max_sqft}`);
-    // if (beds) filters.push(`BedroomsTotal eq ${beds}`);
-    // if (baths) filters.push(`BathroomsFull eq ${baths}`);
-    // if (sqft) filters.push(`LivingArea eq ${sqft}`);
-    // if (year) filters.push(`YearBuilt eq ${year}`);
-    // filters.push(`PropertyType eq '${propertyType}'`);
-
+    // Build filters for nearby comps
     const filters = [];
-
-    // Use Spark's native radius filtering
-    filters.push(`geo.distance(Location, geography'POINT(${coords.lng} ${coords.lat})') le ${radius}`);
-
-
-    // Status and CloseDate
+    filters.push(`geo.distance(Location, geography'POINT(${subjectCoords.lng} ${subjectCoords.lat})') le ${radius}`);
     if (!includeActivePending) {
       filters.push(`MlsStatus eq 'Closed'`);
       if (days_sold) {
@@ -94,8 +94,6 @@ export default async function handler(req, res) {
     } else {
       filters.push(`(MlsStatus eq 'Closed' or MlsStatus eq 'Active' or MlsStatus eq 'Pending')`);
     }
-
-    // Apply other filters
     if (min_price) filters.push(`ListPrice ge ${min_price}`);
     if (max_price) filters.push(`ListPrice le ${max_price}`);
     if (min_sqft) filters.push(`LivingArea ge ${min_sqft}`);
@@ -106,34 +104,21 @@ export default async function handler(req, res) {
     if (year) filters.push(`YearBuilt eq ${year}`);
     filters.push(`PropertyType eq '${propertyType}'`);
 
-    
-
     const url = `${process.env.REPLICATION_BASE}/Property`;
     const filterString = filters.join(' and ');
     const orderby = 'CloseDate desc';
-
-
-    console.log('Fetching comps with filters:', filterString);
-    console.log('Fetching comps with orderby :', orderby, 'and top:', top);
-    console.log('Fetching comps with radius :', radius);
-
-    const topFilter = top < 40 ? 120 : 200; // Spark API limit is 200
-
+    const topFilter = top < 40 ? 120 : 200;
     const select = [
-          'ListingKey', 'UnparsedAddress', 'City', 'StateOrProvince', 'PostalCode',
-          'ListPrice', 'ClosePrice', 'CloseDate',
-          'BedroomsTotal', 'BathroomsFull', 'LivingArea',
-          'YearBuilt', 'LotSizeSquareFeet',
-          'PropertySubType', 'PropertyType',
-          'SubdivisionName', 'MlsStatus', 'Latitude', 'Longitude',
-          'BathroomsTotalInteger', 'Stories', 'ArchitecturalStyle',
-          'PropertyCondition', 'Flooring', 'InteriorFeatures',
-          'ExteriorFeatures', 'PublicRemarks'
-        ]
-    
-    
-
-    
+      'ListingKey', 'UnparsedAddress', 'City', 'StateOrProvince', 'PostalCode',
+      'ListPrice', 'ClosePrice', 'CloseDate',
+      'BedroomsTotal', 'BathroomsFull', 'LivingArea',
+      'YearBuilt', 'LotSizeSquareFeet',
+      'PropertySubType', 'PropertyType',
+      'SubdivisionName', 'MlsStatus', 'Latitude', 'Longitude',
+      'BathroomsTotalInteger', 'Stories', 'ArchitecturalStyle',
+      'PropertyCondition', 'Flooring', 'InteriorFeatures',
+      'ExteriorFeatures', 'PublicRemarks'
+    ];
 
     const idxRes = await axios.get(url, {
       headers: {
@@ -147,30 +132,16 @@ export default async function handler(req, res) {
         $select: select.join(',')
       }
     });
-
     const listings = Array.isArray(idxRes.data.value) ? idxRes.data.value : [];
 
-    // Filter by radius, sort by distance, and return top N using haversineDistance
-    // const compsWithDistance = listings
-    //   .filter((comp) => comp.Latitude && comp.Longitude)
-    //   .map((comp) => ({
-    //     ...comp,
-    //     _distance: haversineDistance(
-    //       coords.lat,
-    //       coords.lng,
-    //       comp.Latitude,
-    //       comp.Longitude
-    //     )
-    //   }))
-    //   .filter((comp) => comp._distance <= radius)
-    //   .sort((a, b) => a._distance - b._distance)
-    //   .slice(0, top)
-    //   .map(({ _distance, ...rest }) => rest); // remove _distance from output
-
-    // return res.json({ comps: compsWithDistance });
-    return res.json({ comps: listings });
+    // Response structure
+    if (address) {
+      return res.json({ subjectData, nearbyData: listings });
+    } else {
+      return res.json({ comps: listings });
+    }
   } catch (err) {
-    console.error('❗ Nearby comps error:', err);
-    return res.status(500).json({ error: 'Failed to fetch nearby comps', detail: err.message });
+    console.error('❗ Comps API error:', err);
+    return res.status(500).json({ error: 'Failed to fetch comps', detail: err.message });
   }
 }
