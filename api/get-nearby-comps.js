@@ -48,24 +48,54 @@ export default async function handler(req, res) {
 
     console.log('Using coordinates:', coords);
 
+    // const filters = [];
+
+    // // Status logic
+    // if (!includeActivePending) {
+    //   filters.push(`MlsStatus eq 'Closed'`);
+    // } else {
+    //   filters.push(`(MlsStatus eq 'Closed' or MlsStatus eq 'Active' or MlsStatus eq 'Pending')`);
+    // }
+
+    // // Date logic
+    // if (days_sold && !includeActivePending) {
+    //   const fromDate = new Date();
+    //   fromDate.setDate(fromDate.getDate() - days_sold);
+    //   const isoDate = fromDate.toISOString().split('T')[0];
+    //   filters.push(`CloseDate ge ${isoDate}`);
+    // }
+
+    // // Apply all other filters based on new destructured variables
+    // if (min_price) filters.push(`ListPrice ge ${min_price}`);
+    // if (max_price) filters.push(`ListPrice le ${max_price}`);
+    // if (min_sqft) filters.push(`LivingArea ge ${min_sqft}`);
+    // if (max_sqft) filters.push(`LivingArea le ${max_sqft}`);
+    // if (beds) filters.push(`BedroomsTotal eq ${beds}`);
+    // if (baths) filters.push(`BathroomsFull eq ${baths}`);
+    // if (sqft) filters.push(`LivingArea eq ${sqft}`);
+    // if (year) filters.push(`YearBuilt eq ${year}`);
+    // filters.push(`PropertyType eq '${propertyType}'`);
+
     const filters = [];
 
-    // Status logic
+    // Use Spark's native radius filtering
+    filters.push(`geo.distance(Location, geography'POINT(${coords.lng} ${coords.lat})') le ${radius}`);
+
+
+    // Status and CloseDate
     if (!includeActivePending) {
       filters.push(`MlsStatus eq 'Closed'`);
+      if (days_sold) {
+        const fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - days_sold);
+        const isoDate = fromDate.toISOString().split('T')[0];
+        filters.push(`CloseDate ge ${isoDate}`);
+      }
     } else {
       filters.push(`(MlsStatus eq 'Closed' or MlsStatus eq 'Active' or MlsStatus eq 'Pending')`);
     }
 
-    // Date logic
-    if (days_sold && !includeActivePending) {
-      const fromDate = new Date();
-      fromDate.setDate(fromDate.getDate() - days_sold);
-      const isoDate = fromDate.toISOString().split('T')[0];
-      filters.push(`CloseDate ge ${isoDate}`);
-    }
-
-    // Apply all other filters based on new destructured variables
+    // Apply other filters
     if (min_price) filters.push(`ListPrice ge ${min_price}`);
     if (max_price) filters.push(`ListPrice le ${max_price}`);
     if (min_sqft) filters.push(`LivingArea ge ${min_sqft}`);
@@ -75,6 +105,7 @@ export default async function handler(req, res) {
     if (sqft) filters.push(`LivingArea eq ${sqft}`);
     if (year) filters.push(`YearBuilt eq ${year}`);
     filters.push(`PropertyType eq '${propertyType}'`);
+
     
 
     const url = `${process.env.REPLICATION_BASE}/Property`;
@@ -120,23 +151,24 @@ export default async function handler(req, res) {
     const listings = Array.isArray(idxRes.data.value) ? idxRes.data.value : [];
 
     // Filter by radius, sort by distance, and return top N using haversineDistance
-    const compsWithDistance = listings
-      .filter((comp) => comp.Latitude && comp.Longitude)
-      .map((comp) => ({
-        ...comp,
-        _distance: haversineDistance(
-          coords.lat,
-          coords.lng,
-          comp.Latitude,
-          comp.Longitude
-        )
-      }))
-      .filter((comp) => comp._distance <= radius)
-      .sort((a, b) => a._distance - b._distance)
-      .slice(0, top)
-      .map(({ _distance, ...rest }) => rest); // remove _distance from output
+    // const compsWithDistance = listings
+    //   .filter((comp) => comp.Latitude && comp.Longitude)
+    //   .map((comp) => ({
+    //     ...comp,
+    //     _distance: haversineDistance(
+    //       coords.lat,
+    //       coords.lng,
+    //       comp.Latitude,
+    //       comp.Longitude
+    //     )
+    //   }))
+    //   .filter((comp) => comp._distance <= radius)
+    //   .sort((a, b) => a._distance - b._distance)
+    //   .slice(0, top)
+    //   .map(({ _distance, ...rest }) => rest); // remove _distance from output
 
-    return res.json({ comps: compsWithDistance });
+    // return res.json({ comps: compsWithDistance });
+    return res.json({ comps: listings });
   } catch (err) {
     console.error('❗ Nearby comps error:', err);
     return res.status(500).json({ error: 'Failed to fetch nearby comps', detail: err.message });
