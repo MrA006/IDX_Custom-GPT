@@ -47,6 +47,7 @@ export default async function handler(req, res) {
         'PropertyCondition', 'Flooring', 'InteriorFeatures',
         'ExteriorFeatures', 'PublicRemarks'
       ];
+      console.log('Subject property filter:', subjectFilter);
       const subjectRes = await axios.get(subjectUrl, {
         headers: {
           Authorization: `Bearer ${process.env.SPARK_ACCESS_TOKEN}`,
@@ -73,6 +74,7 @@ export default async function handler(req, res) {
         const coordsFromGoogle = await getLatLngFromAddress(address);
         subjectCoords = { lat: coordsFromGoogle.lat, lng: coordsFromGoogle.lng };
       }
+      console.log('Subject coordinates used for nearby search:', subjectCoords);
     }
 
     // If no coordinates, error
@@ -120,6 +122,9 @@ export default async function handler(req, res) {
       'ExteriorFeatures', 'PublicRemarks'
     ];
 
+    console.log('Nearby comps filter:', filterString);
+    console.log('Spark API request:', url);
+    console.log('Params:', { $filter: filterString, $orderby: orderby, $top: topFilter, $select: select.join(',') });
     const idxRes = await axios.get(url, {
       headers: {
         Authorization: `Bearer ${process.env.SPARK_ACCESS_TOKEN}`,
