@@ -109,7 +109,7 @@ export default async function handler(req, res) {
     const url = `${process.env.REPLICATION_BASE}/Property`;
     const filterString = filters.join(' and ');
     const orderby = 'CloseDate desc';
-    const topFilter = top < 40 ? 120 : 200;
+    const topFilter = top;
     const select = [
       'ListingKey', 'UnparsedAddress', 'City', 'StateOrProvince', 'PostalCode',
       'ListPrice', 'ClosePrice', 'CloseDate',
