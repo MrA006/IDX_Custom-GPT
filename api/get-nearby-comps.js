@@ -36,7 +36,7 @@ export default async function handler(req, res) {
       // Fetch subject property by address (flexible match)
       const subjectUrl = `${process.env.REPLICATION_BASE}/Property`;
       const streetLine = address.split(',')[0].trim(); 
-      const subjectFilter = `contains(StreetAddress, '${streetLine.replace(/'/g, "''")}') `;
+      const subjectFilter = `contains(UnparsedAddress, '${address.replace(/'/g, "''")}') `;
 
       const subjectSelect = [
         'ListingKey', 'UnparsedAddress', 'City', 'StateOrProvince', 'PostalCode',
