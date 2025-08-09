@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     if (address) {
       // Fetch subject property by address (flexible match)
       const subjectUrl = `${process.env.REPLICATION_BASE}/Property`;
-      const subjectFilter = `contains(UnparsedAddress, '${address.replace(/'/g, "''")}') `;
+      const subjectFilter = `contains(UnparsedAddress, '${address}') `;
 
       const subjectSelect = [
         'ListingKey', 'UnparsedAddress', 'City', 'StateOrProvince', 'PostalCode',
@@ -64,12 +64,42 @@ export default async function handler(req, res) {
         }
       });
       subjectData = Array.isArray(subjectRes.data.value) && subjectRes.data.value.length > 0 ? subjectRes.data.value[0] : null;
+
       // If subjectData is found but missing lat/lng, get from Google API
       if (subjectData && (!subjectData.Latitude || !subjectData.Longitude)) {
         const coordsFromGoogle = await getLatLngFromAddress(subjectData.UnparsedAddress || address);
         subjectData.Latitude = coordsFromGoogle.lat;
         subjectData.Longitude = coordsFromGoogle.lng;
       }
+
+      // If subjectData exists, attempt to fetch property images from Spark Media endpoint
+      if (subjectData && subjectData.ListingKey) {
+        try {
+          // Build Media endpoint URL for this listing
+          // Example: /Property('20250609141731805387000000')/Media
+          const listingKeyEscaped = encodeURIComponent(String(subjectData.ListingKey));
+          const mediaUrl = `${process.env.REPLICATION_BASE}/Property('${listingKeyEscaped}')/Media`;
+          const mediaRes = await axios.get(mediaUrl, {
+            headers: {
+              Authorization: `Bearer ${process.env.SPARK_ACCESS_TOKEN}`,
+              Accept: 'application/json'
+            }
+          });
+
+          // Extract MediaURL from returned media items
+          const mediaItems = Array.isArray(mediaRes.data.value) ? mediaRes.data.value : [];
+          const imageUrls = mediaItems
+            .map(m => m && (m.MediaURL || m.MediaUrl || m.Uri || null))
+            .filter(Boolean);
+
+          subjectData.propertyImages = imageUrls;
+        } catch (mediaErr) {
+          console.warn('Failed to fetch subject property media:', mediaErr?.message || mediaErr);
+          // Always include propertyImages (empty array) to keep response shape consistent
+          subjectData.propertyImages = subjectData.propertyImages || [];
+        }
+      }
+
       // Use subjectData's lat/lng for nearby search if available
       if (subjectData && subjectData.Latitude && subjectData.Longitude) {
         subjectCoords = { lat: subjectData.Latitude, lng: subjectData.Longitude };
@@ -109,7 +139,7 @@ export default async function handler(req, res) {
     if (sqft) filters.push(`LivingArea eq ${sqft}`);
     if (year) filters.push(`YearBuilt eq ${year}`);
     if (propertyType)
-    filters.push(`PropertyType eq '${propertyType}'`);
+      filters.push(`PropertyType eq '${propertyType}'`);
 
     const url = `${process.env.REPLICATION_BASE}/Property`;
     const filterString = filters.join(' and ');
