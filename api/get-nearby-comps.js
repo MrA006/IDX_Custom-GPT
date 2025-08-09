@@ -35,20 +35,22 @@ export default async function handler(req, res) {
     if (address) {
       // Fetch subject property by address (flexible match)
       const subjectUrl = `${process.env.REPLICATION_BASE}/Property`;
-      const streetLine = address.split(',')[0].trim(); 
       const subjectFilter = `contains(UnparsedAddress, '${address.replace(/'/g, "''")}') `;
 
       const subjectSelect = [
         'ListingKey', 'UnparsedAddress', 'City', 'StateOrProvince', 'PostalCode',
-        'ListPrice', 'ClosePrice', 'CloseDate',
-        'BedroomsTotal', 'BathroomsFull', 'LivingArea',
-        'YearBuilt', 'LotSizeSquareFeet',
-        'PropertySubType', 'PropertyType',
+        'ListPrice', 'ClosePrice', 'CloseDate', 'OnMarketDate',
+        'BedroomsTotal', 'BathroomsFull', 'LivingArea','BathroomsHalf', 'BathroomsTotalInteger',
+        'YearBuilt', 'LotSizeSquareFeet', 'BuildingAreaTotal', 'PoolFeatures', 'Heating', 'Cooling',
+        'Sewer', 'WaterSource', 'PropertySubType', 'PropertyType','Fencing','ParkingFeatures',
+        'GarageSpaces', 'FireplacesTotal',
         'SubdivisionName', 'MlsStatus', 'Latitude', 'Longitude',
         'BathroomsTotalInteger', 'Stories', 'ArchitecturalStyle',
         'PropertyCondition', 'Flooring', 'InteriorFeatures',
-        'ExteriorFeatures', 'PublicRemarks'
+        'ExteriorFeatures', 'PublicRemarks',
+        'DaysOnMarket'
       ];
+
       console.log('Subject property filter:', subjectFilter);
       const subjectRes = await axios.get(subjectUrl, {
         headers: {
