@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     max_price,
     min_sqft,
     max_sqft,
-    propertyType = "Residential",
+    propertyType,
     top = 10 // default to 200 results
   } = req.body;
 
@@ -35,7 +35,9 @@ export default async function handler(req, res) {
     if (address) {
       // Fetch subject property by address (flexible match)
       const subjectUrl = `${process.env.REPLICATION_BASE}/Property`;
-      const subjectFilter = `contains(UnparsedAddress, '${address.replace(/'/g, "''")}') and PropertyType eq '${propertyType}'`;
+      const streetLine = address.split(',')[0].trim(); 
+      const subjectFilter = `contains(StreetAddress, '${streetLine.replace(/'/g, "''")}') `;
+
       const subjectSelect = [
         'ListingKey', 'UnparsedAddress', 'City', 'StateOrProvince', 'PostalCode',
         'ListPrice', 'ClosePrice', 'CloseDate',
@@ -104,6 +106,7 @@ export default async function handler(req, res) {
     if (baths) filters.push(`BathroomsFull eq ${baths}`);
     if (sqft) filters.push(`LivingArea eq ${sqft}`);
     if (year) filters.push(`YearBuilt eq ${year}`);
+    if (propertyType)
     filters.push(`PropertyType eq '${propertyType}'`);
 
     const url = `${process.env.REPLICATION_BASE}/Property`;
