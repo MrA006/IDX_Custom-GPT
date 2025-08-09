@@ -3,6 +3,75 @@
 import axios from 'axios';
 import { getLatLngFromAddress } from '../utils/getLatLngFromAddress.js';
 
+function normalizeStreetSuffix(addr) {
+  const mapping = {
+    'aly': 'Alley', 'allee': 'Alley', 'ally': 'Alley',
+    'anx': 'Annex', 'annx': 'Annex', 'anex': 'Annex',
+    'arc': 'Arcade',
+    'ave': 'Avenue', 'av': 'Avenue', 'aven': 'Avenue', 'avenu': 'Avenue', 'avn': 'Avenue', 'avnu': 'Avenue',
+    'bch': 'Beach',
+    'blvd': 'Boulevard', 'boulv': 'Boulevard', 'blv': 'Boulevard',
+    'br': 'Branch', 'brnch': 'Branch',
+    'brg': 'Bridge', 'brdge': 'Bridge',
+    'brk': 'Brook', 'brks': 'Brooks',
+    'byp': 'Bypass', 'bypa': 'Bypass', 'byps': 'Bypass', 'bypas': 'Bypass',
+    'ct': 'Court', 'crt': 'Court',
+    'ctr': 'Center', 'cntr': 'Center',
+    'cir': 'Circle', 'circ': 'Circle',
+    'clfs': 'Cliffs', 'clf': 'Cliff',
+    'cv': 'Cove', 'cvs': 'Coves',
+    'cres': 'Crescent', 'crsent': 'Crescent',
+    'dr': 'Drive', 'drv': 'Drive', 'driv': 'Drive',
+    'ext': 'Extension', 'extn': 'Extension', 'extnsn': 'Extension',
+    'fld': 'Field', 'flds': 'Fields',
+    'frk': 'Fork', 'frks': 'Forks',
+    'frd': 'Ford', 'frds': 'Fords',
+    'frst': 'Forest',
+    'fwy': 'Freeway', 'freewy': 'Freeway', 'frway': 'Freeway',
+    'gdn': 'Garden', 'gardn': 'Garden', 'grdn': 'Garden',
+    'grn': 'Green', 'grvs': 'Groves', 'grv': 'Grove',
+    'hwy': 'Highway',
+    'hts': 'Heights',
+    'hw': 'Hill', 'hllw': 'Hollow',
+    'inlt': 'Inlet',
+    'is': 'Island', 'iss': 'Islands',
+    'jct': 'Junction', 'jctn': 'Junction', 'jcts': 'Junctions',
+    'lk': 'Lake', 'lks': 'Lakes',
+    'ln': 'Lane', 'la': 'Lane',
+    'lck': 'Lock',
+    'lck': 'Lock', 'ldg': 'Lodge', 'lge': 'Lodge',
+    'loop': 'Loop',
+    'mall': 'Mall',
+    'mnr': 'Manor', 'mnrs': 'Manors',
+    'mt': 'Mount', 'mtn': 'Mountain', 'mtns': 'Mountains',
+    'pkwy': 'Parkway', 'pkway': 'Parkway',
+    'pl': 'Place', 'plza': 'Plaza', 'plz': 'Plaza',
+    'pt': 'Point', 'pts': 'Points',
+    'rd': 'Road', 'rds': 'Roads',
+    'rte': 'Route',
+    'row': 'Row',
+    'sq': 'Square', 'sqr': 'Square', 'sqre': 'Square', 'sqs': 'Squares',
+    'ter': 'Terrace', 'terr': 'Terrace',
+    'trl': 'Trail', 'trly': 'Alley', // example correction
+    'trce': 'Trace',
+    'trk': 'Track', 'trak': 'Track',
+    'tpke': 'Turnpike', 'tpk': 'Turnpike',
+    'tunl': 'Tunnel',
+    'un': 'Union',
+    'valley': 'Valley', 'vly': 'Valley',
+    'vlgs': 'Villages', 'vlg': 'Village', 'ville': 'Ville',
+    'vis': 'Vista', 'vw': 'View', 'vws': 'Views',
+    'way': 'Way',
+    'wy': 'Way'
+  };
+
+  return addr.split(' ').map(word => {
+    const w = word.toLowerCase().replace('.', '');
+    return mapping[w] || word;
+  }).join(' ');
+}
+
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Only POST method is allowed' });
@@ -36,8 +105,9 @@ export default async function handler(req, res) {
       // Fetch subject property by address (flexible match)
       const subjectUrl = `${process.env.REPLICATION_BASE}/Property`;
       // const subjectFilter = `contains(UnparsedAddress, '${address}') `;
-      const shortAddress = address.split(',')[0]; // "217 Sioux Dr"
-      const subjectFilter = `contains(UnparsedAddress, '${shortAddress}')`;
+      const shortAddress = address.split(',')[0]; // e.g. "5912 Cochise Trl"
+      const norm = normalizeStreetSuffix(shortAddress);
+      const subjectFilter = `contains(UnparsedAddress, '${norm}')`;
 
 
       const subjectSelect = [
