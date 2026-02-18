@@ -16,6 +16,8 @@ export default async function handler(req, res) {
 
   filters.push(`ModificationTimestamp ge ${isoDate}`);
   filters.push(`StateOrProvince eq 'NC'`);
+  filters.push(`MlsStatus eq 'active'`);
+
   // filters.push(`ModificationTimestamp ge ${isoTimestamp}`);
   // filters.push(`OnMarketDate ge ${isoDate}`);
 
