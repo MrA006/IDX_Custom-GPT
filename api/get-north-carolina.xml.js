@@ -21,6 +21,7 @@ function listingToXml(listing) {
   parts.push(`    <content>${escapeXml(listing.title || listing.UnparsedAddress)}</content>`);
   parts.push(`    <title>${escapeXml(listing.title || listing.UnparsedAddress)}</title>`);
   parts.push(`    <excerpt>${escapeXml(listing.title || listing.UnparsedAddress)}</excerpt>`);
+  parts.push(`    <description>${escapeXml(listing.PublicRemarks || '')}</description>`);
   parts.push(`    <ListPrice>${escapeXml(listing.ListPrice ?? '')}</ListPrice>`);
   parts.push(`    <ClosePrice>${escapeXml(listing.ClosePrice ?? '')}</ClosePrice>`);
   parts.push(`    <BedroomsTotal>${escapeXml(listing.BedroomsTotal ?? '')}</BedroomsTotal>`);
