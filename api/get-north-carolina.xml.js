@@ -18,7 +18,9 @@ function listingToXml(listing) {
   const parts = [];
   parts.push('  <property>');
   parts.push(`    <ListingKey>${escapeXml(listing.ListingKey)}</ListingKey>`);
+  parts.push(`    <content>${escapeXml(listing.title || listing.UnparsedAddress)}</content>`);
   parts.push(`    <title>${escapeXml(listing.title || listing.UnparsedAddress)}</title>`);
+  parts.push(`    <excerpt>${escapeXml(listing.title || listing.UnparsedAddress)}</excerpt>`);
   parts.push(`    <ListPrice>${escapeXml(listing.ListPrice ?? '')}</ListPrice>`);
   parts.push(`    <ClosePrice>${escapeXml(listing.ClosePrice ?? '')}</ClosePrice>`);
   parts.push(`    <BedroomsTotal>${escapeXml(listing.BedroomsTotal ?? '')}</BedroomsTotal>`);
